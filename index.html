@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>The Study Room — Technical PM Companion</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;0,9..144,700;1,9..144,500&family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="data.js"></script>
+<style>
+  :root{
+    --cream:#FAF3EC;
+    --cream-deep:#F3E9DD;
+    --plum:#3A1E2E;
+    --plum-soft:#5C3348;
+    --rose:#C97B84;
+    --rose-deep:#B4616C;
+    --blush:#F1DCE0;
+    --gold:#C6A25D;
+    --gold-soft:#E4CFA0;
+    --ink:#2B1620;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--cream);
+    color:var(--ink);
+    font-family:'Manrope',sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  .font-display{ font-family:'Fraunces', serif; }
+  ::selection{ background:var(--gold-soft); color:var(--plum); }
+
+  /* watermark */
+  .watermark{
+    position:fixed; inset:0; pointer-events:none; z-index:0;
+    display:flex; align-items:center; justify-content:center;
+    overflow:hidden;
+  }
+  .watermark span{
+    font-family:'Fraunces', serif;
+    font-size:min(26vw, 320px);
+    font-weight:600;
+    color:var(--plum);
+    opacity:0.028;
+    white-space:nowrap;
+    letter-spacing:0.02em;
+    transform:rotate(-6deg);
+  }
+
+  /* scrollbar */
+  ::-webkit-scrollbar{ width:8px; height:8px; }
+  ::-webkit-scrollbar-track{ background:transparent; }
+  ::-webkit-scrollbar-thumb{ background:var(--rose); border-radius:8px; opacity:0.5; }
+
+  /* entrance choreography */
+  @keyframes riseIn{
+    from{ opacity:0; transform:translateY(18px); }
+    to{ opacity:1; transform:translateY(0); }
+  }
+  .rise-1{ animation:riseIn 0.7s cubic-bezier(.22,1,.36,1) both; }
+  .rise-2{ animation:riseIn 0.7s cubic-bezier(.22,1,.36,1) 0.12s both; }
+  .rise-3{ animation:riseIn 0.7s cubic-bezier(.22,1,.36,1) 0.24s both; }
+  .rise-4{ animation:riseIn 0.7s cubic-bezier(.22,1,.36,1) 0.36s both; }
+
+  @keyframes flicker{
+    0%,100%{ transform:scale(1) rotate(-2deg); }
+    50%{ transform:scale(1.08) rotate(2deg); }
+  }
+  .flame{ animation:flicker 1.8s ease-in-out infinite; transform-origin:center bottom; }
+
+  @keyframes pulseDot{
+    0%{ box-shadow:0 0 0 0 rgba(201,123,132,0.55); }
+    70%{ box-shadow:0 0 0 8px rgba(201,123,132,0); }
+    100%{ box-shadow:0 0 0 0 rgba(201,123,132,0); }
+  }
+  .pulse-dot{ animation:pulseDot 2s infinite; }
+
+  /* accordion */
+  .accordion-body{
+    display:grid;
+    grid-template-rows:0fr;
+    transition:grid-template-rows 0.42s cubic-bezier(.22,1,.36,1);
+  }
+  .accordion-body.open{ grid-template-rows:1fr; }
+  .accordion-inner{ overflow:hidden; min-height:0; }
+
+  /* week fade */
+  @keyframes weekFade{
+    from{ opacity:0; transform:translateY(10px); }
+    to{ opacity:1; transform:translateY(0); }
+  }
+  .week-panel{ animation:weekFade 0.45s cubic-bezier(.22,1,.36,1) both; }
+
+  .hairline{
+    height:1px;
+    background:linear-gradient(90deg, transparent, var(--gold) 20%, var(--gold) 80%, transparent);
+    opacity:0.55;
+  }
+
+  .checklist-item{ transition:all 0.25s ease; }
+  .checklist-box{
+    transition:all 0.2s cubic-bezier(.22,1,.36,1);
+  }
+  .checklist-box.checked{
+    background:var(--rose);
+    border-color:var(--rose);
+  }
+
+  .progress-fill{
+    transition:width 0.6s cubic-bezier(.22,1,.36,1);
+  }
+
+  .nav-week-btn{ transition:background 0.2s ease, color 0.2s ease, padding-left 0.2s ease; }
+  .nav-week-btn:hover{ padding-left:22px; }
+
+  .card-lift{ transition:transform 0.25s ease, box-shadow 0.25s ease; }
+  .card-lift:hover{ transform:translateY(-3px); box-shadow:0 14px 30px -14px rgba(58,30,46,0.28); }
+
+  textarea{ font-family:'Manrope',sans-serif; }
+  textarea:focus{ outline:none; }
+
+  .seal{
+    background:radial-gradient(circle at 32% 28%, var(--gold-soft), var(--gold) 65%);
+  }
+
+  @media (prefers-reduced-motion: reduce){
+    *{ animation:none !important; transition:none !important; }
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<div class="watermark"><span>KratosTech</span></div>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useMemo, useRef } = React;
+
+/* ---------- localStorage helpers ---------- */
+const LS_CHECK = "kratos_pm_checklist_v1";
+const LS_NOTES = "kratos_pm_scratchpad_v1";
+const LS_STREAK = "kratos_pm_streak_v1";
+const LS_ACTIVE = "kratos_pm_active_week_v1";
+
+function loadJSON(key, fallback){
+  try{
+    const raw = localStorage.getItem(key);
+    return raw ? JSON.parse(raw) : fallback;
+  }catch(e){ return fallback; }
+}
+function saveJSON(key, value){
+  try{ localStorage.setItem(key, JSON.stringify(value)); }catch(e){}
+}
+
+function weekKey(sId, wN){ return `${sId}-${wN}`; }
+
+/* ---------- streak logic ---------- */
+function useStreak(){
+  const [streak, setStreak] = useState(() => loadJSON(LS_STREAK, { count: 0, last: null }));
+
+  useEffect(() => {
+    const today = new Date().toDateString();
+    setStreak(prev => {
+      if(prev.last === today) return prev;
+      const yesterday = new Date(Date.now() - 86400000).toDateString();
+      let next;
+      if(prev.last === yesterday){
+        next = { count: prev.count + 1, last: today };
+      } else if(prev.last === null){
+        next = { count: 1, last: today };
+      } else {
+        next = { count: 1, last: today };
+      }
+      saveJSON(LS_STREAK, next);
+      return next;
+    });
+  }, []);
+
+  return streak.count;
+}
+
+/* ---------- Icons (inline SVG, no external icon lib needed) ---------- */
+const Icon = {
+  Flame: (p) => (
+    <svg viewBox="0 0 24 24" width={p.size||18} height={p.size||18} fill="none" className={p.className}>
+      <path d="M12 2c1 3-2 4-2 7a4 4 0 108 0c0-1-.5-2-1-2 .8 2-.3 3-1.5 3C17 10 18 8 18 6c2 2 3 5 3 8a9 9 0 11-18 0c0-4 2-7 5-9 1-1 3-2 4-3z" fill="currentColor"/>
+    </svg>
+  ),
+  Check: (p) => (
+    <svg viewBox="0 0 24 24" width={p.size||14} height={p.size||14} fill="none" className={p.className}>
+      <path d="M4 12l5 5L20 6" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  ),
+  Chevron: (p) => (
+    <svg viewBox="0 0 24 24" width={p.size||16} height={p.size||16} fill="none" className={p.className} style={{transform: p.open ? 'rotate(90deg)' : 'rotate(0deg)', transition:'transform .3s ease'}}>
+      <path d="M9 6l6 6-6 6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  ),
+  Book: (p) => (
+    <svg viewBox="0 0 24 24" width={p.size||16} height={p.size||16} fill="none" className={p.className}>
+      <path d="M4 5.5A2.5 2.5 0 016.5 3H20v15H6.5A2.5 2.5 0 004 20.5v-15z" stroke="currentColor" strokeWidth="1.6"/>
+      <path d="M4 20.5A2.5 2.5 0 016.5 18H20" stroke="currentColor" strokeWidth="1.6"/>
+    </svg>
+  ),
+  Play: (p) => (
+    <svg viewBox="0 0 24 24" width={p.size||16} height={p.size||16} fill="none" className={p.className}>
+      <circle cx="12" cy="12" r="9.2" stroke="currentColor" strokeWidth="1.6"/>
+      <path d="M10 8.5l6 3.5-6 3.5v-7z" fill="currentColor"/>
+    </svg>
+  ),
+  Sparkle: (p) => (
+    <svg viewBox="0 0 24 24" width={p.size||16} height={p.size||16} fill="none" className={p.className}>
+      <path d="M12 3l1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3z" fill="currentColor"/>
+    </svg>
+  ),
+  Pen: (p) => (
+    <svg viewBox="0 0 24 24" width={p.size||16} height={p.size||16} fill="none" className={p.className}>
+      <path d="M4 20l4.5-1.2L19 8.3a2 2 0 000-2.8l-.5-.5a2 2 0 00-2.8 0L5.2 15.5 4 20z" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round"/>
+    </svg>
+  ),
+};
+
+/* ---------- Progress computation ---------- */
+function useProgress(checklist){
+  return useMemo(() => {
+    let total = 0, done = 0;
+    const perSemester = {};
+    CURRICULUM.forEach(sem => {
+      let sTotal = 0, sDone = 0;
+      sem.weeks.forEach(w => {
+        const key = weekKey(sem.id, w.n);
+        const arr = checklist[key] || [];
+        sTotal += w.objectives.length;
+        sDone += arr.filter(Boolean).length;
+      });
+      perSemester[sem.id] = { total: sTotal, done: sDone };
+      total += sTotal; done += sDone;
+    });
+    return { total, done, perSemester, pct: total ? Math.round((done/total)*100) : 0 };
+  }, [checklist]);
+}
+
+/* ---------- Hero ---------- */
+function Hero({ streakCount, overallPct }){
+  return (
+    <header className="relative overflow-hidden rounded-b-[2.5rem] px-6 md:px-12 pt-8 pb-14 md:pb-16"
+      style={{background:'linear-gradient(155deg, var(--plum) 0%, var(--plum-soft) 55%, var(--rose-deep) 130%)'}}>
+      <div className="absolute -top-24 -right-24 w-72 h-72 rounded-full opacity-20"
+        style={{background:'radial-gradient(circle, var(--gold) 0%, transparent 70%)'}}></div>
+      <div className="absolute -bottom-16 -left-10 w-56 h-56 rounded-full opacity-10"
+        style={{background:'radial-gradient(circle, var(--rose) 0%, transparent 70%)'}}></div>
+
+      <div className="relative max-w-6xl mx-auto flex flex-col md:flex-row md:items-start md:justify-between gap-6">
+        <div>
+          <div className="rise-1 flex items-center gap-2 mb-4">
+            <span className="pulse-dot inline-block w-2 h-2 rounded-full" style={{background:'#8FD9A8'}}></span>
+            <span className="text-[11px] tracking-wide uppercase text-white/70 font-semibold">In Session</span>
+          </div>
+          <h1 className="rise-2 font-display text-white text-3xl md:text-5xl leading-tight" style={{fontWeight:500}}>
+            Welcome back, <span style={{color:'var(--gold-soft)'}}>Eniola Faleye</span>
+          </h1>
+          <p className="rise-3 text-white/70 mt-3 max-w-md text-[15px]">
+            Your Technical Product Management study room — every semester, every week, kept exactly where you left it.
+          </p>
+        </div>
+
+        <div className="rise-4 flex items-center gap-4">
+          <div className="rounded-2xl px-5 py-4 flex items-center gap-3 backdrop-blur-sm"
+            style={{background:'rgba(255,255,255,0.08)', border:'1px solid rgba(255,255,255,0.14)'}}>
+            <Icon.Flame size={26} className="flame text-orange-300"/>
+            <div>
+              <div className="font-display text-white text-2xl leading-none" style={{fontWeight:600}}>{streakCount}</div>
+              <div className="text-[11px] uppercase tracking-wide text-white/60 mt-1">day streak</div>
+            </div>
+          </div>
+          <div className="rounded-2xl px-5 py-4 hidden sm:block" style={{background:'rgba(255,255,255,0.08)', border:'1px solid rgba(255,255,255,0.14)'}}>
+            <div className="font-display text-white text-2xl leading-none" style={{fontWeight:600}}>{overallPct}%</div>
+            <div className="text-[11px] uppercase tracking-wide text-white/60 mt-1">curriculum complete</div>
+          </div>
+        </div>
+      </div>
+    </header>
+  );
+}
+
+/* ---------- Sidebar Navigator ---------- */
+function Navigator({ activeSem, activeWeek, onSelect, progress, openSemesters, toggleSemester }){
+  return (
+    <nav className="lg:sticky lg:top-6 space-y-3">
+      {CURRICULUM.map(sem => {
+        const semProg = progress.perSemester[sem.id];
+        const semPct = semProg.total ? Math.round((semProg.done/semProg.total)*100) : 0;
+        const isOpen = openSemesters.includes(sem.id);
+        return (
+          <div key={sem.id} className="rounded-2xl overflow-hidden" style={{background:'#fff', border:'1px solid var(--blush)'}}>
+            <button
+              onClick={() => toggleSemester(sem.id)}
+              className="w-full text-left px-4 py-3.5 flex items-center justify-between gap-2"
+              style={{background: isOpen ? 'var(--blush)' : 'transparent'}}
+            >
+              <div>
+                <div className="text-[10px] uppercase tracking-wide font-bold" style={{color:'var(--rose-deep)'}}>Semester {sem.id}</div>
+                <div className="font-display text-[15px] leading-snug mt-0.5" style={{color:'var(--plum)'}}>{sem.title}</div>
+              </div>
+              <Icon.Chevron open={isOpen} className="shrink-0" style={{color:'var(--rose-deep)'}}/>
+            </button>
+            <div className="px-4 pb-2 pt-1">
+              <div className="h-1.5 rounded-full w-full" style={{background:'var(--cream-deep)'}}>
+                <div className="h-1.5 rounded-full progress-fill" style={{width:`${semPct}%`, background:'linear-gradient(90deg, var(--rose), var(--gold))'}}></div>
+              </div>
+            </div>
+            <div className={`accordion-body ${isOpen ? 'open' : ''}`}>
+              <div className="accordion-inner">
+                <div className="pb-2">
+                  {sem.weeks.map(w => {
+                    const key = weekKey(sem.id, w.n);
+                    const done = (progress.perSemester[sem.id]);
+                    const isActive = activeSem === sem.id && activeWeek === w.n;
+                    return (
+                      <button
+                        key={w.n}
+                        onClick={() => onSelect(sem.id, w.n)}
+                        className="nav-week-btn w-full text-left px-4 py-2.5 flex items-center gap-3"
+                        style={{
+                          background: isActive ? 'var(--rose)' : 'transparent',
+                          color: isActive ? '#fff' : 'var(--plum)',
+                        }}
+                      >
+                        <span className="font-display text-xs w-5 text-center shrink-0"
+                          style={{color: isActive ? '#fff' : 'var(--gold)'}}>{w.n}</span>
+                        <span className="text-[13.5px] leading-snug">{w.title}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })}
+    </nav>
+  );
+}
+
+/* ---------- Checklist ---------- */
+function Checklist({ semId, week, checklist, toggleItem }){
+  const key = weekKey(semId, week.n);
+  const arr = checklist[key] || [];
+  const doneCount = arr.filter(Boolean).length;
+
+  return (
+    <div className="rounded-2xl p-6" style={{background:'#fff', border:'1px solid var(--blush)'}}>
+      <div className="flex items-center justify-between mb-4">
+        <h3 className="font-display text-lg" style={{color:'var(--plum)'}}>This week's micro-objectives</h3>
+        <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{background:'var(--blush)', color:'var(--rose-deep)'}}>
+          {doneCount} / {week.objectives.length}
+        </span>
+      </div>
+      <div className="space-y-2.5">
+        {week.objectives.map((obj, i) => {
+          const checked = !!arr[i];
+          return (
+            <label key={i} className="checklist-item flex items-start gap-3 cursor-pointer group">
+              <span
+                onClick={(e) => { e.preventDefault(); toggleItem(key, i, week.objectives.length); }}
+                className={`checklist-box mt-0.5 w-5 h-5 rounded-md border-2 flex items-center justify-center shrink-0 ${checked ? 'checked' : ''}`}
+                style={{borderColor: checked ? 'var(--rose)' : '#D9C3C8'}}
+              >
+                {checked && <Icon.Check className="text-white"/>}
+              </span>
+              <span className={`text-[14.5px] leading-relaxed`} style={{color: checked ? '#9C8590' : 'var(--ink)', textDecoration: checked ? 'line-through' : 'none'}}>
+                {obj}
+              </span>
+            </label>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ---------- Reading list ---------- */
+function ReadingList({ books }){
+  return (
+    <div className="rounded-2xl p-6" style={{background:'#fff', border:'1px solid var(--blush)'}}>
+      <div className="flex items-center gap-2 mb-4">
+        <Icon.Book style={{color:'var(--rose-deep)'}}/>
+        <h3 className="font-display text-lg" style={{color:'var(--plum)'}}>Recommended reading</h3>
+      </div>
+      <div className="space-y-3">
+        {books.map((b, i) => (
+          <div key={i} className="card-lift flex items-center gap-3 p-3 rounded-xl" style={{background:'var(--cream)'}}>
+            <div className="w-9 h-12 rounded shrink-0" style={{background:'linear-gradient(160deg, var(--rose), var(--gold))'}}></div>
+            <div>
+              <div className="text-[14px] font-semibold" style={{color:'var(--plum)'}}>{b.t}</div>
+              <div className="text-[12.5px]" style={{color:'#8B6E78'}}>{b.a}</div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/* ---------- Video resources ---------- */
+function VideoResources({ videos, weekTitle }){
+  return (
+    <div className="rounded-2xl p-6" style={{background:'#fff', border:'1px solid var(--blush)'}}>
+      <div className="flex items-center gap-2 mb-4">
+        <Icon.Play style={{color:'var(--rose-deep)'}}/>
+        <h3 className="font-display text-lg" style={{color:'var(--plum)'}}>Watch to reinforce</h3>
+      </div>
+      <div className="space-y-3">
+        {videos.map((v, i) => {
+          const query = encodeURIComponent(v.t + " " + weekTitle);
+          return (
+            <a key={i} href={`https://www.youtube.com/results?search_query=${query}`} target="_blank" rel="noopener noreferrer"
+              className="card-lift flex items-center gap-3 p-3 rounded-xl no-underline" style={{background:'var(--cream)'}}>
+              <div className="w-14 h-10 rounded-lg flex items-center justify-center shrink-0" style={{background:'var(--plum)'}}>
+                <Icon.Play className="text-white" size={16}/>
+              </div>
+              <div className="flex-1">
+                <div className="text-[13.5px] font-semibold leading-snug" style={{color:'var(--plum)'}}>{v.t}</div>
+                <div className="text-[11.5px] mt-0.5" style={{color:'#8B6E78'}}>Search on YouTube →</div>
+              </div>
+            </a>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+/* ---------- Fun fact ---------- */
+function FunFact({ fact }){
+  return (
+    <div className="rounded-2xl p-6 relative overflow-hidden"
+      style={{background:'linear-gradient(155deg, var(--plum) 0%, var(--rose-deep) 140%)'}}>
+      <Icon.Sparkle size={64} className="absolute -top-3 -right-3 opacity-10 text-white"/>
+      <div className="flex items-center gap-2 mb-3">
+        <Icon.Sparkle size={16} style={{color:'var(--gold-soft)'}}/>
+        <h3 className="font-display text-[15px] uppercase tracking-wide" style={{color:'var(--gold-soft)'}}>Fun fact of the week</h3>
+      </div>
+      <p className="text-white/90 text-[14.5px] leading-relaxed relative">{fact}</p>
+    </div>
+  );
+}
+
+/* ---------- Scratchpad ---------- */
+function Scratchpad({ semId, week, notes, updateNote }){
+  const key = weekKey(semId, week.n);
+  const value = notes[key] || "";
+  const [saved, setSaved] = useState(true);
+  const timer = useRef(null);
+
+  const handleChange = (e) => {
+    setSaved(false);
+    updateNote(key, e.target.value);
+    clearTimeout(timer.current);
+    timer.current = setTimeout(() => setSaved(true), 500);
+  };
+
+  return (
+    <div className="rounded-2xl p-6" style={{background:'#fff', border:'1px solid var(--blush)'}}>
+      <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center gap-2">
+          <Icon.Pen style={{color:'var(--rose-deep)'}}/>
+          <h3 className="font-display text-lg" style={{color:'var(--plum)'}}>Weekly scratchpad</h3>
+        </div>
+        <span className="text-[11px]" style={{color: saved ? '#9C8590' : 'var(--rose-deep)'}}>{saved ? 'Saved' : 'Saving…'}</span>
+      </div>
+      <textarea
+        value={value}
+        onChange={handleChange}
+        placeholder="Reflections, code snippets, half-formed ideas — this space is only yours, and it stays right here between sessions."
+        className="w-full rounded-xl p-4 text-[14px] leading-relaxed resize-none"
+        style={{background:'var(--cream)', border:'1px solid var(--blush)', color:'var(--ink)', minHeight:'160px'}}
+        rows={7}
+      />
+    </div>
+  );
+}
+
+/* ---------- Weekly Hub ---------- */
+function WeeklyHub({ sem, week, checklist, toggleItem, notes, updateNote }){
+  const key = weekKey(sem.id, week.n);
+  return (
+    <div key={key} className="week-panel space-y-5">
+      <div>
+        <div className="flex items-center gap-2 text-[11px] uppercase tracking-wide font-bold" style={{color:'var(--rose-deep)'}}>
+          <span>Semester {sem.id}</span>
+          <span className="hairline flex-none w-4"></span>
+          <span>Week {week.n}</span>
+        </div>
+        <h2 className="font-display text-2xl md:text-[32px] mt-2 leading-tight" style={{color:'var(--plum)'}}>{week.title}</h2>
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-5">
+        <Checklist semId={sem.id} week={week} checklist={checklist} toggleItem={toggleItem} />
+        <FunFact fact={week.fact} />
+      </div>
+
+      <div className="grid md:grid-cols-2 gap-5">
+        <ReadingList books={week.books} />
+        <VideoResources videos={week.videos} weekTitle={week.title} />
+      </div>
+
+      <Scratchpad semId={sem.id} week={week} notes={notes} updateNote={updateNote} />
+    </div>
+  );
+}
+
+/* ---------- App ---------- */
+function App(){
+  const streakCount = useStreak();
+  const [checklist, setChecklist] = useState(() => loadJSON(LS_CHECK, {}));
+  const [notes, setNotes] = useState(() => loadJSON(LS_NOTES, {}));
+  const [activePos, setActivePos] = useState(() => loadJSON(LS_ACTIVE, { sem: 1, week: 1 }));
+  const [openSemesters, setOpenSemesters] = useState([activePos.sem]);
+
+  const progress = useProgress(checklist);
+
+  useEffect(() => { saveJSON(LS_CHECK, checklist); }, [checklist]);
+  useEffect(() => { saveJSON(LS_NOTES, notes); }, [notes]);
+  useEffect(() => { saveJSON(LS_ACTIVE, activePos); }, [activePos]);
+
+  const toggleItem = (key, idx, total) => {
+    setChecklist(prev => {
+      const arr = (prev[key] || Array(total).fill(false)).slice();
+      arr[idx] = !arr[idx];
+      return { ...prev, [key]: arr };
+    });
+  };
+
+  const updateNote = (key, val) => {
+    setNotes(prev => ({ ...prev, [key]: val }));
+  };
+
+  const selectWeek = (semId, weekN) => {
+    setActivePos({ sem: semId, week: weekN });
+    if(!openSemesters.includes(semId)) setOpenSemesters(prev => [...prev, semId]);
+  };
+
+  const toggleSemester = (semId) => {
+    setOpenSemesters(prev => prev.includes(semId) ? prev.filter(id => id !== semId) : [...prev, semId]);
+  };
+
+  const activeSem = CURRICULUM.find(s => s.id === activePos.sem) || CURRICULUM[0];
+  const activeWeek = activeSem.weeks.find(w => w.n === activePos.week) || activeSem.weeks[0];
+
+  return (
+    <div className="relative z-10 min-h-screen">
+      <Hero streakCount={streakCount} overallPct={progress.pct} />
+
+      <main className="max-w-6xl mx-auto px-6 md:px-12 -mt-8 pb-20">
+        <div className="grid lg:grid-cols-[280px_1fr] gap-6">
+          <Navigator
+            activeSem={activePos.sem}
+            activeWeek={activePos.week}
+            onSelect={selectWeek}
+            progress={progress}
+            openSemesters={openSemesters}
+            toggleSemester={toggleSemester}
+          />
+          <WeeklyHub
+            sem={activeSem}
+            week={activeWeek}
+            checklist={checklist}
+            toggleItem={toggleItem}
+            notes={notes}
+            updateNote={updateNote}
+          />
+        </div>
+      </main>
+
+      <footer className="text-center pb-10 text-[12px]" style={{color:'#B79AA3'}}>
+        The Study Room — built for Eniola's Technical PM journey · KratosTech
+      </footer>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+</body>
+</html>
